@@ -191,6 +191,12 @@ var deps = {
 		desc: 'Makes markers draggable (by mouse or touch).'
 	},
 
+    ImageOverlayDrag: {
+        src: ['layer/ImageOverlay.Drag.js'],
+        deps: ['Marker',' ImageOverlay'],
+        desc: 'Makes image overlay draggable (by mouse or touch).'
+    },
+
 	PolyEdit: {
 		src: ['layer/vector/Polyline.Edit.js'],
 		deps: ['Polyline', 'DivIcon'],

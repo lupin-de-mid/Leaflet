@@ -62,6 +62,7 @@
 		'layer/tile/TileLayer.WMS.js',
 		'layer/tile/TileLayer.Canvas.js',
 		'layer/ImageOverlay.js',
+		'layer/ImageOverlay.Drag.js',
 		'layer/Popup.js',
 
 		'layer/marker/Icon.js',

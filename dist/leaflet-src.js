@@ -2579,132 +2579,150 @@ L.tileLayer.canvas = function (options) {
 };
 
 L.ImageOverlay = L.Class.extend({
-	includes: L.Mixin.Events,
+    includes: L.Mixin.Events,
 
-	options: {
-		opacity: 1
-	},
+    options: {
+        opacity: 1
+    },
 
-	initialize: function (url, bounds, options) { // (String, LatLngBounds, Object)
-		this._url = url;
-		this._bounds = L.latLngBounds(bounds);
+    initialize: function (url, bounds, options) { // (String, LatLngBounds, Object)
+        this._url = url;
+        this._bounds = L.latLngBounds(bounds);
 
-		L.Util.setOptions(this, options);
-	},
+        L.Util.setOptions(this, options);
 
-	onAdd: function (map) {
-		this._map = map;
+        // TODO refactor: move to ImageOverlay.Drag.js
+        if (L.Handler.ImageDrag) {
+            this.draggable = new L.Handler.ImageDrag(this);
 
-		if (!this._image) {
-			this._initImage();
-		}
+            if (this.options.draggable) {
+                this.draggable.enable();
+            }
+        }
+    },
 
-		map._panes.overlayPane.appendChild(this._image);
+    onAdd: function (map) {
+        this._map = map;
 
-		map.on('viewreset', this._reset, this);
+        if (!this._image) {
+            this._initImage();
+        }
 
-		if (map.options.zoomAnimation && L.Browser.any3d) {
-			map.on('zoomanim', this._animateZoom, this);
-		}
+        map._panes.overlayPane.appendChild(this._image);
 
-		this._reset();
-	},
+        map.on('viewreset', this._reset, this);
 
-	onRemove: function (map) {
-		map.getPanes().overlayPane.removeChild(this._image);
+        if (map.options.zoomAnimation && L.Browser.any3d) {
+            map.on('zoomanim', this._animateZoom, this);
+        }
 
-		map.off('viewreset', this._reset, this);
+        if (this.draggable && this.draggable.enabled()) {
+            this.draggable.addHooks();
+        }
 
-		if (map.options.zoomAnimation) {
-			map.off('zoomanim', this._animateZoom, this);
-		}
-	},
+        this._reset();
+    },
 
-	addTo: function (map) {
-		map.addLayer(this);
-		return this;
-	},
+    onRemove: function (map) {
 
-	setOpacity: function (opacity) {
-		this.options.opacity = opacity;
-		this._updateOpacity();
-		return this;
-	},
+        if (this.draggable && this.draggable.enabled()) {
+            this.draggable.removeHooks();
+        }
 
-	// TODO remove bringToFront/bringToBack duplication from TileLayer/Path
-	bringToFront: function () {
-		if (this._image) {
-			this._map._panes.overlayPane.appendChild(this._image);
-		}
-		return this;
-	},
+        map.getPanes().overlayPane.removeChild(this._image);
 
-	bringToBack: function () {
-		var pane = this._map._panes.overlayPane;
-		if (this._image) {
-			pane.insertBefore(this._image, pane.firstChild);
-		}
-		return this;
-	},
+        map.off('viewreset', this._reset, this);
 
-	_initImage: function () {
-		this._image = L.DomUtil.create('img', 'leaflet-image-layer');
+        if (map.options.zoomAnimation) {
+            map.off('zoomanim', this._animateZoom, this);
+        }
+    },
 
-		if (this._map.options.zoomAnimation && L.Browser.any3d) {
-			L.DomUtil.addClass(this._image, 'leaflet-zoom-animated');
-		} else {
-			L.DomUtil.addClass(this._image, 'leaflet-zoom-hide');
-		}
+    addTo: function (map) {
+        map.addLayer(this);
+        return this;
+    },
 
-		this._updateOpacity();
+    setOpacity: function (opacity) {
+        this.options.opacity = opacity;
+        this._updateOpacity();
+        return this;
+    },
 
-		//TODO createImage util method to remove duplication
-		L.Util.extend(this._image, {
-			galleryimg: 'no',
-			onselectstart: L.Util.falseFn,
-			onmousemove: L.Util.falseFn,
-			onload: L.Util.bind(this._onImageLoad, this),
-			src: this._url
-		});
-	},
+    // TODO remove bringToFront/bringToBack duplication from TileLayer/Path
+    bringToFront: function () {
+        if (this._image) {
+            this._map._panes.overlayPane.appendChild(this._image);
+        }
+        return this;
+    },
 
-	_animateZoom: function (e) {
-		var map = this._map,
-			image = this._image,
-		    scale = map.getZoomScale(e.zoom),
-		    nw = this._bounds.getNorthWest(),
-		    se = this._bounds.getSouthEast(),
+    bringToBack: function () {
+        var pane = this._map._panes.overlayPane;
+        if (this._image) {
+            pane.insertBefore(this._image, pane.firstChild);
+        }
+        return this;
+    },
 
-		    topLeft = map._latLngToNewLayerPoint(nw, e.zoom, e.center),
-		    size = map._latLngToNewLayerPoint(se, e.zoom, e.center)._subtract(topLeft),
-		    currentSize = map.latLngToLayerPoint(se)._subtract(map.latLngToLayerPoint(nw)),
-		    origin = topLeft._add(size._subtract(currentSize)._divideBy(2));
+    _initImage: function () {
+        this._image = L.DomUtil.create('img', 'leaflet-image-layer');
 
-		image.style[L.DomUtil.TRANSFORM] = L.DomUtil.getTranslateString(origin) + ' scale(' + scale + ') ';
-	},
+        if (this._map.options.zoomAnimation && L.Browser.any3d) {
+            L.DomUtil.addClass(this._image, 'leaflet-zoom-animated');
+        } else {
+            L.DomUtil.addClass(this._image, 'leaflet-zoom-hide');
+        }
 
-	_reset: function () {
-		var image   = this._image,
-		    topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest()),
-		    size    = this._map.latLngToLayerPoint(this._bounds.getSouthEast())._subtract(topLeft);
+        this._updateOpacity();
 
-		L.DomUtil.setPosition(image, topLeft);
+        //TODO createImage util method to remove duplication
+        L.Util.extend(this._image, {
+            galleryimg: 'no',
+            onselectstart: L.Util.falseFn,
+            onmousemove: L.Util.falseFn,
+            onload: L.Util.bind(this._onImageLoad, this),
+            src: this._url
+        });
+    },
 
-		image.style.width  = size.x + 'px';
-		image.style.height = size.y + 'px';
-	},
+    _animateZoom: function (e) {
+        var map = this._map,
+            image = this._image,
+            scale = map.getZoomScale(e.zoom),
+            nw = this._bounds.getNorthWest(),
+            se = this._bounds.getSouthEast(),
 
-	_onImageLoad: function () {
-		this.fire('load');
-	},
+            topLeft = map._latLngToNewLayerPoint(nw, e.zoom, e.center),
+            size = map._latLngToNewLayerPoint(se, e.zoom, e.center)._subtract(topLeft),
+            currentSize = map.latLngToLayerPoint(se)._subtract(map.latLngToLayerPoint(nw)),
+            origin = topLeft._add(size._subtract(currentSize)._divideBy(2));
 
-	_updateOpacity: function () {
-		L.DomUtil.setOpacity(this._image, this.options.opacity);
-	}
+        image.style[L.DomUtil.TRANSFORM] = L.DomUtil.getTranslateString(origin) + ' scale(' + scale + ') ';
+    },
+
+    _reset: function () {
+        var image = this._image,
+            topLeft = this._map.latLngToLayerPoint(this._bounds.getNorthWest()),
+            size = this._map.latLngToLayerPoint(this._bounds.getSouthEast())._subtract(topLeft);
+
+        L.DomUtil.setPosition(image, topLeft);
+
+        image.style.width = size.x + 'px';
+        image.style.height = size.y + 'px';
+    },
+
+    _onImageLoad: function () {
+        this.fire('load');
+    },
+
+    _updateOpacity: function () {
+        L.DomUtil.setOpacity(this._image, this.options.opacity);
+    }
 });
 
 L.imageOverlay = function (url, bounds, options) {
-	return new L.ImageOverlay(url, bounds, options);
+    return new L.ImageOverlay(url, bounds, options);
 };
 
 
@@ -5924,7 +5942,7 @@ L.Map.TouchZoom = L.Handler.extend({
 			p2 = map.mouseEventToLayerPoint(e.touches[1]),
 			viewCenter = map._getCenterLayerPoint();
 
-		this._startCenter = p1._add(p2)._divideBy(2);
+		this._startCenter = p1.add(p2)._divideBy(2);
 		this._startDist = p1.distanceTo(p2);
 
 		this._moved = false;
@@ -6307,6 +6325,123 @@ L.Handler.MarkerDrag = L.Handler.extend({
 	}
 });
 
+
+L.Handler.ImageDrag = L.Handler.extend({
+    options: {
+//        icon: new L.DivIcon({
+//            iconSize: new L.Point(8, 8),
+//            className: 'leaflet-div-icon leaflet-editing-icon'
+//        })
+
+    },
+
+    initialize: function (image, options) {
+        this._image = image;
+        L.Util.setOptions(this, options);
+    },
+
+    addHooks: function () {
+        if (this._image._map) {
+            if (!this._markerGroup) {
+                this._initMarkers();
+            }
+            this._image._map.addLayer(this._markerGroup);
+            this._center._icon.style.cursor = "move";
+            this._center.setZIndexOffset(10);
+
+            //this._radius._icon.style.cursor = "se-resize";
+        }
+    },
+
+    removeHooks: function () {
+        if (this._image._map) {
+            this._image._map.removeLayer(this._markerGroup);
+            delete this._markerGroup;
+        }
+    },
+
+    updateMarkers: function () {
+        this._markerGroup.clearLayers();
+        this._initMarkers();
+    },
+
+    _initMarkers: function () {
+        if (!this._markerGroup) {
+            this._markerGroup = new L.LayerGroup();
+        }
+
+        var c = this._image._bounds.getCenter();
+        this._center = this._createMarker(c, 0);
+
+        //  this._radius = this._createMarker([c.lat, c.lng + r], 1);
+    },
+
+    _createMarker: function (latlng, index) {
+        var marker = new L.Marker(latlng, {
+            draggable: true,
+            icon: new L.DivIcon({
+                iconSize: new L.Point(8, 8),
+                className: 'leaflet-div-icon leaflet-editing-icon'
+            })
+        });
+
+        marker.on('dragstart', this._onMarkerDragStart, this);
+        marker.on('drag', this._onMarkerDrag, this);
+        marker.on('dragend', this._onMarkerDragEnd, this);
+
+        this._markerGroup.addLayer(marker);
+
+
+        return marker;
+    },
+
+    _onMarkerDragStart: function (e) {
+        var marker = e.target;
+
+        if (marker === this._center) {
+            var c = marker.getLatLng();
+            var newBounds = this._moveBounds(this._image._bounds, c);
+        }
+    },
+
+    _onMarkerDrag: function (e) {
+        var marker = e.target;
+
+        if (marker === this._center) {
+            var c = marker.getLatLng();
+            var newBounds = this._moveBounds(this._image._bounds, c);
+            this._image._bounds = newBounds;
+            this._image._reset();
+        }
+    },
+
+    _onMarkerDragEnd: function (e) {
+        var marker = e.target;
+        if (marker === this._center) {
+            var c = marker.getLatLng();
+            var newBounds = this._moveBounds(this._image._bounds, c);
+            this._image._bounds = newBounds;
+            this._image._reset();
+        }
+    },
+
+    //move bounds center to point
+    _moveBounds: function (bounds, newCenter) {
+        var delta = this._delta(newCenter, bounds.getCenter());
+        var topLeft = this._moveLatLng(bounds.getNorthWest(), delta);
+        var bottomDown = this._moveLatLng(bounds.getSouthEast(), delta);
+        return L.latLngBounds(topLeft, bottomDown);
+    },
+
+    _moveLatLng: function (point, delta) {
+        return L.latLng(point.lat + delta.lat, point.lng + delta.lng);
+    },
+
+    _delta: function (from, to) {
+        return L.latLng(from.lat - to.lat, from.lng - to.lng);
+    }
+
+});
 
 L.Handler.PolyEdit = L.Handler.extend({
 	options: {
